@@ -1,4 +1,3 @@
-
 pipeline {
     agent any
 
@@ -6,6 +5,14 @@ pipeline {
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '20'))
         disableConcurrentBuilds()
+    }
+
+    parameters {
+        booleanParam(
+            name: 'APPLY_INFRASTRUCTURE',
+            defaultValue: false,
+            description: 'Use AWS credentials for a refreshed plan and enable the separately approved apply stages.'
+        )
     }
 
     environment {
@@ -42,7 +49,13 @@ pipeline {
 
         stage('Plan') {
             steps {
-                bat 'terraform plan -input=false -out=tfplan'
+                script {
+                    if (params.APPLY_INFRASTRUCTURE) {
+                        bat 'terraform plan -input=false -out=tfplan'
+                    } else {
+                        bat 'terraform plan -input=false -refresh=false -out=tfplan'
+                    }
+                }
                 bat 'terraform show -no-color tfplan > tfplan.txt'
                 archiveArtifacts artifacts: 'tfplan, tfplan.txt', fingerprint: true
             }
@@ -50,18 +63,24 @@ pipeline {
 
         stage('Approval') {
             when {
-                branch 'main'
+                allOf {
+                    branch 'main'
+                    expression { params.APPLY_INFRASTRUCTURE }
+                }
             }
             steps {
                 timeout(time: 30, unit: 'MINUTES') {
-                    input message: 'Review the Terraform plan. Approve applying it to AWS?', ok: 'Apply'
+                    input message: 'Review the refreshed Terraform plan. Approve applying it to AWS?', ok: 'Apply'
                 }
             }
         }
 
         stage('Apply') {
             when {
-                branch 'main'
+                allOf {
+                    branch 'main'
+                    expression { params.APPLY_INFRASTRUCTURE }
+                }
             }
             steps {
                 input message: 'Final confirmation: allow Terraform to apply changes to AWS?', ok: 'Proceed'
