@@ -9,8 +9,17 @@ terraform {
   }
 }
 
+variable "ci_plan_mode" {
+  description = "Skip AWS identity checks for a local, non-applying CI plan"
+  type        = bool
+  default     = false
+}
+
 provider "aws" {
-  region = "ap-south-1"
+  region                      = "ap-south-1"
+  skip_credentials_validation = var.ci_plan_mode
+  skip_metadata_api_check     = var.ci_plan_mode
+  skip_requesting_account_id  = var.ci_plan_mode
 }
 
 resource "aws_vpc" "main" {

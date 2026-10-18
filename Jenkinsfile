@@ -51,9 +51,11 @@ pipeline {
             steps {
                 script {
                     if (params.APPLY_INFRASTRUCTURE) {
-                        bat 'terraform plan -input=false -out=tfplan'
+                        bat 'terraform plan -input=false -var=ci_plan_mode=false -out=tfplan'
                     } else {
-                        bat 'terraform plan -input=false -refresh=false -out=tfplan'
+                        withEnv(['AWS_ACCESS_KEY_ID=ci-plan-placeholder', 'AWS_SECRET_ACCESS_KEY=ci-plan-placeholder', 'AWS_EC2_METADATA_DISABLED=true']) {
+                            bat 'terraform plan -input=false -refresh=false -var=ci_plan_mode=true -out=tfplan'
+                        }
                     }
                 }
                 bat 'terraform show -no-color tfplan > tfplan.txt'
